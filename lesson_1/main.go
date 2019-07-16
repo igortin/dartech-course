@@ -1,10 +1,9 @@
-package main
+package lesson_1
 
 import (
 	"fmt"
 	"github.com/pkg/errors"
 )
-
 
 type MyErr int32
 
@@ -18,14 +17,12 @@ func summ2(w interface{}) (string, error) {
 	case int:
 		return "int", nil
 	case string:
-		return "string",nil
+		return "string", nil
 	default:
 		return "", errors.New("unknown")
 	}
 }
 
-
-
-func main(){
+func main() {
 	fmt.Println("Heaven")
 }
