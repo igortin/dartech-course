@@ -57,6 +57,7 @@ func main() {
 		_, _ = file.WriteString(strconv.Itoa(<-ch2))
 		wg.Done()
 	}(ch2)
+
 	wg.Wait()
 }
 
