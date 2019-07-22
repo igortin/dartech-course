@@ -5,7 +5,6 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"syscall"
 )
 
 var (
@@ -15,6 +14,7 @@ var (
 
 func main() {
 	var wg sync.WaitGroup
+	var mnOnce sync.Once
 	wg.Add(5)
 	ch := make(chan int)
 	ch1 := make(chan int)
@@ -45,14 +45,19 @@ func main() {
 		wg.Done()
 	}(ch1)
 
-	go func(ch2 chan int) {
+	mnOnce.Do(func(){
 		_, err := os.Stat(path)
+
 		if os.IsNotExist(err) {
 			_, err := os.Create(path)
+
 			if err != nil {
-				syscall.Exit(1)
+				os.Exit(1)
 			}
 		}
+	})
+
+	go func(ch2 chan int) {
 		file, err := os.OpenFile(path, os.O_RDWR, 0644)
 		if err != nil {
 			fmt.Println(err)
@@ -63,7 +68,6 @@ func main() {
 	}(ch2)
 	wg.Wait()
 }
-
 
 
 func fibonacci(n int) int {
