@@ -24,7 +24,15 @@ func (wr FdWriter) Write(data []byte) (n int, err error) {
 	return wr.fd.Write(tmp)
 }
 
+
+
 func main() {
+	defer func(){
+		if r:= recover(); r != nil {
+			fmt.Printf("Catch panic for main %v", r)
+		}
+	}()
+
 	var wg sync.WaitGroup
 	ch := make(chan []byte)
 	ch1 := make(chan []byte)
@@ -36,13 +44,13 @@ func main() {
 
 	inputFilename, err := os.OpenFile(inputFile, os.O_RDONLY, 0644)
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 	defer inputFilename.Close()
 
 	outputFilename, err := os.OpenFile(outputFile, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
 	defer outputFilename.Close()
 
@@ -57,6 +65,7 @@ func main() {
 	go func(ch chan<- []byte) {
 		wg.Add(1)
 		line := make([]byte, 256)
+		time.Sleep(100 * time.Millisecond)
 		reader := bufio.NewReader(inputFilename)
 		for {
 			_, err = reader.Read(line)
