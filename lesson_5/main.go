@@ -1,4 +1,4 @@
-package main
+package main1
 
 import (
 	"encoding/json"
@@ -10,12 +10,7 @@ import (
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-
-	num, err := strconv.Atoi(vars["id"])
-
-	if err != nil {
-		panic("request has no parameter id")
-	}
+	num, _ := strconv.Atoi(vars["id"])
 	if num > 0 {
 		a, b, c := getSlice(num + 1)
 		fb := &FibNumber{a, b, c}
@@ -34,7 +29,7 @@ type FibNumber struct {
 
 func main() {
 	r := mux.NewRouter()
-	r.HandleFunc("/fib/{id}", handler).Methods("GET")
+	r.HandleFunc("/fib/{id:[0-9]+}", handler).Methods("GET")
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
