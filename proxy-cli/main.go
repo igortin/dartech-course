@@ -1,15 +1,11 @@
 package main
 
 import (
+	"dartech-course/proxy-cli/darproxy"
 	"github.com/urfave/cli"
 	"log"
 	"os"
 	"sort"
-)
-
-var (
-	sep = "/"
-	filepath string
 )
 
 func main() {
@@ -27,7 +23,7 @@ func main() {
 				cli.StringFlag{
 					Name:  "config, c",
 					Usage: "Load config from `FILE`",
-					Destination: &filepath,
+					Destination: &darproxy.FilePath,
 				},
 			},
 			Action: run,
@@ -42,14 +38,14 @@ func main() {
 	}
 }
 
-
+// Command to run cli darproxy
 func run(c *cli.Context) error {
-	filepath = GetPath(filepath)
-	err := Cmd.GetCfg()
+	darproxy.FilePath = darproxy.GetPath(darproxy.FilePath)
+	err := darproxy.Cmd.GetCfg()
 	if err != nil {
 		return  err
 	}
-	err = Cmd.Start()
+	err = darproxy.Cmd.Start()
 	if err != nil {
 		return  err
 	}
