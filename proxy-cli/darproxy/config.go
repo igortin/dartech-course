@@ -1,12 +1,14 @@
 package darproxy
 
-// Cfg Struct
-type Cfg struct {
+
+type IoConfig interface {
+}
+
+type Config struct {
 	Port      string     `json:"interface"`
 	Upstreams []Upstream `json:"upstreams"`
 }
 
-// Upstream Struct
 type Upstream struct {
 	Path        string   `json:"path"`
 	Method      string   `json:"method"`
