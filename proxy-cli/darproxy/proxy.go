@@ -1,7 +1,6 @@
 package darproxy
 
 import (
-	"context"
 	"encoding/json"
 	"github.com/gorilla/mux"
 	"log"
@@ -9,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"context"
 	"time"
 )
 
@@ -18,75 +18,71 @@ const (
 )
 
 type ioProxy interface {
-	Start() error
-	Reload(Config) error
+	Run() error
+	Shutdown() error
 }
 
 type proxy struct {
-	cfg Config
+	service         *http.Server
+	stopped         bool
+	router          *mux.Router
+	gracefulTimeout time.Duration
+	cfg             Config
 }
 
-func (cmd *proxy) Start() error {
-	router := mux.NewRouter()
-	router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) { json.NewEncoder(w).Encode(map[string]bool{"ok": true}) })
-	router.HandleFunc(cmd.cfg.Upstreams[0].Path, cmd.makeHandlers(index0)).Methods(cmd.cfg.Upstreams[index0].Method)
-	router.HandleFunc(cmd.cfg.Upstreams[1].Path, cmd.makeHandlers(index1)).Methods(cmd.cfg.Upstreams[index1].Method)
-	srv := &http.Server{
-		Handler: router,
-		Addr:    cmd.cfg.Port,
-		// Good practice: enforce timeouts for servers you create!
-		WriteTimeout: 15 * time.Second,
-		ReadTimeout:  15 * time.Second,
-	}
-
-
-
+func (cmd *proxy) Run() error {
 	go func() {
-		log.Fatal(srv.ListenAndServe())
+		stop := make(chan os.Signal, 1)
+		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+		<-stop
+		if err := cmd.Shutdown(); err != nil {
+			log.Printf("Error: %v\n", err)
+		} else {
+			log.Println("Server stopped")
+		}
 	}()
-	log.Println("server started")
-	stop := make(chan os.Signal, 1)							// create ch for os signal
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)		// configure wait signals good channel
-	<-stop													// until no object good in channel block below code lines
-	// below code
-	log.Println("received stop signal")				// if get from good channel obj go exec below code
+	cmd.stopped = false
+	cmd.router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {json.NewEncoder(w).Encode(map[string]bool{"ok": true})})
+	cmd.router.HandleFunc(cmd.cfg.Upstreams[0].Path, cmd.makeHandlers(index0)).Methods(cmd.cfg.Upstreams[index0].Method)
+	cmd.router.HandleFunc(cmd.cfg.Upstreams[1].Path, cmd.makeHandlers(index1)).Methods(cmd.cfg.Upstreams[index1].Method)
+	return cmd.service.ListenAndServe()
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	log.Println("call to shutdown")
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Printf("Error: %v\n", err)
-	} else {
-		log.Println("Server stopped")
+func NewProxy(srv *http.Server, config Config) ioProxy {
+	router := mux.NewRouter()
+	srv.Handler = router
+	graceTimeout := 5 * time.Second
+	return &proxy{
+		srv,
+		true,
+		router,
+		graceTimeout,
+		config,
 	}
-	time.Sleep(5 * time.Second)
-	return nil
-}
-
-func (cmd *proxy) Reload(config Config) error {
-	cmd.cfg = config
-	return nil
-}
-
-func (cmd *proxy) Stop() error {
-	panic("implement me")
-	return nil
-}
-
-func NewProxy(conf Config) ioProxy {
-	return &proxy{conf}
 }
 
 func (cmd *proxy) makeHandlers(index int) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if cmd.stopped {
+			w.WriteHeader(503)
+			return
+		}
 		switch cmd.cfg.Upstreams[index].ProxyMethod {
 		case "round-robin":
 			body, _ := GetResponseRoundRobin(index, cmd.cfg)
 			w.Write(body)
+
 		case "anycast":
 			body, _ := GetResponseAnycast(index, cmd.cfg)
 			w.Write(body)
 		}
 	}
+}
+
+func (cmd *proxy) Shutdown() error {
+	cmd.stopped = true
+	ctx, cancel := context.WithTimeout(context.Background(), cmd.gracefulTimeout)
+	defer cancel()
+	time.Sleep(cmd.gracefulTimeout)
+	return cmd.service.Shutdown(ctx)
 }

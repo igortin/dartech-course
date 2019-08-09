@@ -5,17 +5,17 @@ import (
 	"encoding/json"
 	"github.com/urfave/cli"
 	"log"
+	"net/http"
 	"os"
 	"sort"
+	"time"
 )
 
 var (
 	filePath string
 	sep      = "/"
-	count = &darproxy.Count{}
+	count    = &darproxy.Count{}
 )
-
-
 
 func main() {
 	app := cli.NewApp()
@@ -37,19 +37,19 @@ func main() {
 			},
 			Action: run,
 		},
-		{
-			Name:      "reload",
-			Usage:     "reload service",
-			UsageText: "dar-proxy reload",
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:        "config, c",
-					Usage:       "Load config from `FILE`",
-					Destination: &filePath,
-				},
-			},
-			Action: reload,
-		},
+		//{
+		//	Name:      "reload",
+		//	Usage:     "reload service",
+		//	UsageText: "dar-proxy reload",
+		//	Flags: []cli.Flag{
+		//		cli.StringFlag{
+		//			Name:        "config, c",
+		//			Usage:       "Load config from `FILE`",
+		//			Destination: &filePath,
+		//		},
+		//	},
+		//	Action: reload,
+		//},
 	}
 	sort.Sort(cli.CommandsByName(app.Commands))
 	sort.Sort(cli.FlagsByName(app.Flags))
@@ -63,24 +63,21 @@ func main() {
 func run(c *cli.Context) error {
 	conf := &darproxy.Config{}
 	err := getCfg(filePath, conf)
-	if err != nil {
-		return err
-	}
-	cmd := darproxy.NewProxy(*conf)
-	if err != nil {
-		return err
-	}
-	err = cmd.Start()
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
-func reload(c *cli.Context) error {
-	conf := &darproxy.Config{}
-	getCfg(filePath, conf)
-	panic("implement me")
+	if err != nil {
+		return err
+	}
+
+	cmd := darproxy.NewProxy(&http.Server{
+		Addr:         conf.Port,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  15 * time.Second,
+	}, *conf)
+	err = cmd.Run()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -88,6 +85,7 @@ func getCfg(path string, config *darproxy.Config) (error) {
 	if path == "" {
 		path = os.Getenv("HOME") + sep + ".darproxy/config.json"
 	}
+
 	f, err := os.Open(path)
 	if err != nil {
 		return err
