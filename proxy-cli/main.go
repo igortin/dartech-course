@@ -15,6 +15,8 @@ var (
 	count = &darproxy.Count{}
 )
 
+
+
 func main() {
 	app := cli.NewApp()
 	app.Name = "darproxy"
@@ -76,6 +78,9 @@ func run(c *cli.Context) error {
 }
 
 func reload(c *cli.Context) error {
+	conf := &darproxy.Config{}
+	getCfg(filePath, conf)
+	panic("implement me")
 	return nil
 }
 
