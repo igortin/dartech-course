@@ -1,6 +1,5 @@
 package darproxy
 
-
 type IoConfig interface {
 }
 
@@ -14,4 +13,8 @@ type Upstream struct {
 	Method      string   `json:"method"`
 	Back        []string `json:"backends"`
 	ProxyMethod string   `json:"proxyMethod"`
+}
+
+type ProxyConfigs struct {
+	Configs []Config `json:"configs"`
 }

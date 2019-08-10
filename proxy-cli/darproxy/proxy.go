@@ -1,14 +1,15 @@
 package darproxy
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"context"
 	"time"
 )
 
@@ -18,7 +19,7 @@ const (
 )
 
 type ioProxy interface {
-	Run() error
+	Run(quit chan string) error
 	Shutdown() error
 }
 
@@ -30,7 +31,8 @@ type proxy struct {
 	cfg             Config
 }
 
-func (cmd *proxy) Run() error {
+func (cmd *proxy) Run(quit chan string) error {
+	fmt.Println("Server started on port: ", cmd.cfg.Port )
 	go func() {
 		stop := make(chan os.Signal, 1)
 		signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
@@ -40,6 +42,7 @@ func (cmd *proxy) Run() error {
 		} else {
 			log.Println("Server stopped")
 		}
+		quit <- "quit"
 	}()
 	cmd.stopped = false
 	cmd.router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {json.NewEncoder(w).Encode(map[string]bool{"ok": true})})
@@ -71,7 +74,6 @@ func (cmd *proxy) makeHandlers(index int) http.HandlerFunc {
 		case "round-robin":
 			body, _ := GetResponseRoundRobin(index, cmd.cfg)
 			w.Write(body)
-
 		case "anycast":
 			body, _ := GetResponseAnycast(index, cmd.cfg)
 			w.Write(body)
@@ -84,5 +86,6 @@ func (cmd *proxy) Shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), cmd.gracefulTimeout)
 	defer cancel()
 	time.Sleep(cmd.gracefulTimeout)
+
 	return cmd.service.Shutdown(ctx)
 }

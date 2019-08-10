@@ -4,6 +4,7 @@ import (
 	"dartech-course/proxy-cli/darproxy"
 	"encoding/json"
 	"github.com/urfave/cli"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -15,6 +16,7 @@ var (
 	filePath string
 	sep      = "/"
 	count    = &darproxy.Count{}
+	quit     = make(chan string)
 )
 
 func main() {
@@ -37,63 +39,46 @@ func main() {
 			},
 			Action: run,
 		},
-		//{
-		//	Name:      "reload",
-		//	Usage:     "reload service",
-		//	UsageText: "dar-proxy reload",
-		//	Flags: []cli.Flag{
-		//		cli.StringFlag{
-		//			Name:        "config, c",
-		//			Usage:       "Load config from `FILE`",
-		//			Destination: &filePath,
-		//		},
-		//	},
-		//	Action: reload,
-		//},
 	}
 	sort.Sort(cli.CommandsByName(app.Commands))
 	sort.Sort(cli.FlagsByName(app.Flags))
 	err := app.Run(os.Args)
-
 	if err != nil {
 		log.Fatalln(err)
 	}
+	<-quit
 }
 
 func run(c *cli.Context) error {
-	conf := &darproxy.Config{}
-	err := getCfg(filePath, conf)
-
+	proxyConfigs := &darproxy.ProxyConfigs{}
+	err := getCfg(filePath, proxyConfigs)
 	if err != nil {
 		return err
 	}
-
-	cmd := darproxy.NewProxy(&http.Server{
-		Addr:         conf.Port,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  15 * time.Second,
-	}, *conf)
-	err = cmd.Run()
-	if err != nil {
-		return err
+	for _, conf := range proxyConfigs.Configs {
+		cmd := darproxy.NewProxy(&http.Server{
+			Addr:         conf.Port,
+			ReadTimeout:  5 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			IdleTimeout:  15 * time.Second,
+		}, conf)
+		go cmd.Run(quit)
 	}
 	return nil
 }
 
-func getCfg(path string, config *darproxy.Config) (error) {
+func getCfg(path string, serviceCfg *darproxy.ProxyConfigs) error {
+	var b []byte
 	if path == "" {
 		path = os.Getenv("HOME") + sep + ".darproxy/config.json"
 	}
-
-	f, err := os.Open(path)
+	b, err := ioutil.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
-	err = json.NewDecoder(f).Decode(config)
+	_ = json.Unmarshal(b, &serviceCfg)
 	if err != nil {
 		return err
 	}
-	return err
+	return nil
 }
